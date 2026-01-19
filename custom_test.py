@@ -9,12 +9,15 @@ from npu_matmul_profiler import NPUMatmulProfiler, MatmulConfig
 profiler = NPUMatmulProfiler(use_neuron=True)
 
 # 측정하고 싶은 행렬 크기 정의
-# M=128, K=128 고정, N을 128부터 1024까지 32씩 증가
+# K=128 고정
+# M: 128 → 512 (32씩 증가)
+# N: 512 → 4096 (64씩 증가)
 configs = []
-M = 129
 K = 128
-for N in range(128, 2048 + 1, 32):
-    configs.append(MatmulConfig(M=M, K=K, N=N))
+
+for M in range(128, 512 + 1, 32):
+    for N in range(512, 4096 + 1, 64):
+        configs.append(MatmulConfig(M=M, K=K, N=N))
 
 results = []
 
@@ -26,7 +29,7 @@ for config in configs:
     print(f'  Tiling: M={tiles_M} x K={tiles_K} x N={tiles_N} = {tiles_M*tiles_K*tiles_N} tiles')
 
     # 실제 측정 (warmup=3, iterations=10)
-    result = profiler.profile_single_matmul(config, warmup=3, iterations=10)
+    result = profiler.profile_single_matmul(config, warmup=3, iterations=20)
 
     print(f'  Latency: {result.latency_ms:.4f} ms')
     results.append(result)
