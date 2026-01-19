@@ -79,7 +79,7 @@ python example_usage.py 5  # Quick test
 ```python
 from npu_matmul_profiler import NPUMatmulProfiler, MatmulConfig
 
-# Neuron device를 사용하여 profiler 초기화
+# Neuron device를 사용하여 profiler 초기화 (기본값: FP16)
 profiler = NPUMatmulProfiler(use_neuron=True)
 
 # 단일 행렬곱 프로파일링
@@ -97,6 +97,37 @@ configs = [
 ]
 results = [profiler.profile_single_matmul(cfg) for cfg in configs]
 profiler.save_results_to_csv(results, "./results/custom_results.csv")
+```
+
+### Data Type 선택 (FP32 / FP16 / BF16)
+
+LLM inference에서는 **FP16** 또는 **BF16**을 사용합니다. 기본값은 **FP16**입니다.
+
+```python
+import torch
+from npu_matmul_profiler import NPUMatmulProfiler, MatmulConfig, NPUConfig
+
+# FP16 (기본값, 권장)
+config_fp16 = NPUConfig(dtype=torch.float16)
+profiler_fp16 = NPUMatmulProfiler(npu_config=config_fp16, use_neuron=True)
+
+# BF16 (numerical stability 우수)
+config_bf16 = NPUConfig(dtype=torch.bfloat16)
+profiler_bf16 = NPUMatmulProfiler(npu_config=config_bf16, use_neuron=True)
+
+# FP32 (비권장, 느림)
+config_fp32 = NPUConfig(dtype=torch.float32)
+profiler_fp32 = NPUMatmulProfiler(npu_config=config_fp32, use_neuron=True)
+```
+
+**성능 비교 (M=256, K=4096, N=4096):**
+- FP16: ~1.3 ms (2.6배 빠름) ✅ **권장**
+- BF16: ~1.9 ms (1.8배 빠름)
+- FP32: ~3.4 ms (baseline)
+
+**Data Type 비교 실행:**
+```bash
+python3 test_dtype_comparison.py
 ```
 
 ### CPU 모드로 테스트 (Neuron 없이)

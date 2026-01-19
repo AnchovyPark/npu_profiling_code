@@ -25,6 +25,7 @@ class NPUConfig:
     PE_N: int = 128  # PE width
     MAX_TENSOR_M: int = 128  # Max moving tensor height
     MAX_TENSOR_K: int = 512  # Max moving tensor width
+    dtype: torch.dtype = torch.float16  # Data type for matmul (float16 for LLM)
 
 
 @dataclass
@@ -80,16 +81,18 @@ class NPUMatmulProfiler:
             try:
                 # Check if Neuron device is available
                 self.device = torch.device('xla')
-                print(f"Using Neuron device (XLA)")
+                dtype_name = str(self.npu_config.dtype).split('.')[-1]
+                print(f"Using Neuron device (XLA) with {dtype_name}")
             except Exception as e:
                 warnings.warn(f"Neuron device not available: {e}. Falling back to CPU.")
                 self.device = torch.device('cpu')
                 self.use_neuron = False
         else:
             self.device = torch.device('cpu')
-            print("Using CPU device")
+            dtype_name = str(self.npu_config.dtype).split('.')[-1]
+            print(f"Using CPU device with {dtype_name}")
 
-        # Cache for compiled models: key=(M,K,N), value=compiled_model
+        # Cache for compiled models: key=(M,K,N,dtype), value=compiled_model
         self._compiled_models = {}
 
     def calculate_tiling(self, matmul_config: MatmulConfig) -> Tuple[int, int, int]:
@@ -113,7 +116,8 @@ class NPUMatmulProfiler:
         Returns:
             Compiled Neuron model or regular PyTorch function
         """
-        key = (M, K, N)
+        dtype = self.npu_config.dtype
+        key = (M, K, N, dtype)
 
         if key in self._compiled_models:
             return self._compiled_models[key]
@@ -128,16 +132,17 @@ class NPUMatmulProfiler:
 
         if self.use_neuron:
             # Create example inputs for tracing
-            example_a = torch.randn(M, K, dtype=torch.float32)
-            example_b = torch.randn(K, N, dtype=torch.float32)
+            example_a = torch.randn(M, K, dtype=dtype)
+            example_b = torch.randn(K, N, dtype=dtype)
 
             try:
                 # Compile for Neuron using torch_neuronx.trace
-                print(f"  [Compiling for Neuron] M={M}, K={K}, N={N}... ", end='', flush=True)
+                dtype_name = str(dtype).split('.')[-1]
+                print(f"  [Compiling for Neuron] M={M}, K={K}, N={N} ({dtype_name})... ", end='', flush=True)
                 compiled_model = torch_neuronx.trace(
                     model,
                     (example_a, example_b),
-                    compiler_workdir=f"/tmp/neuron_cache/matmul_{M}x{K}x{N}"
+                    compiler_workdir=f"/tmp/neuron_cache/matmul_{M}x{K}x{N}_{dtype_name}"
                 )
                 print("Done")
                 self._compiled_models[key] = compiled_model
@@ -203,8 +208,9 @@ class NPUMatmulProfiler:
             ProfilingResult with latency and tiling information
         """
         # Create random tensors (on CPU initially)
-        A = torch.randn(matmul_config.M, matmul_config.K, dtype=torch.float32)
-        B = torch.randn(matmul_config.K, matmul_config.N, dtype=torch.float32)
+        dtype = self.npu_config.dtype
+        A = torch.randn(matmul_config.M, matmul_config.K, dtype=dtype)
+        B = torch.randn(matmul_config.K, matmul_config.N, dtype=dtype)
 
         # Warmup
         for _ in range(warmup):

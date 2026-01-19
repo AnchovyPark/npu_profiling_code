@@ -9,12 +9,12 @@ from npu_matmul_profiler import NPUMatmulProfiler, MatmulConfig
 profiler = NPUMatmulProfiler(use_neuron=True)
 
 # 측정하고 싶은 행렬 크기 정의
-configs = [
-    MatmulConfig(M=128, K=4096, N=4096),   # 예: Prefill
-    MatmulConfig(M=256, K=4096, N=4096),   # 예: Larger prefill
-    MatmulConfig(M=16, K=4096, N=4096),    # 예: Decode with batch
-    # 여기에 원하는 크기 추가
-]
+# M=128, K=128 고정, N을 128부터 1024까지 32씩 증가
+configs = []
+M = 129
+K = 128
+for N in range(128, 2048 + 1, 32):
+    configs.append(MatmulConfig(M=M, K=K, N=N))
 
 results = []
 
