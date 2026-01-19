@@ -3,14 +3,19 @@ NPU Matrix Multiplication Latency Profiling
 Measures latency for various matrix dimensions considering NPU constraints:
 - PE (Processing Element): 128 x 128
 - Moving Tensor: 128 x 512
+
+Uses AWS Neuron SDK for profiling on Inferentia2/Trainium instances.
 """
 
 import time
 import csv
 import numpy as np
-from typing import Tuple, List, Dict
+import torch
+import torch_neuronx
+from typing import Tuple, List, Dict, Optional
 from dataclasses import dataclass
 import os
+import warnings
 
 
 @dataclass
@@ -59,8 +64,33 @@ class ProfilingResult:
 
 
 class NPUMatmulProfiler:
-    def __init__(self, npu_config: NPUConfig = None):
+    def __init__(self, npu_config: NPUConfig = None, use_neuron: bool = True):
+        """
+        Initialize NPU Matmul Profiler
+
+        Args:
+            npu_config: NPU hardware configuration
+            use_neuron: If True, use Neuron device. If False, use CPU (for testing)
+        """
         self.npu_config = npu_config or NPUConfig()
+        self.use_neuron = use_neuron
+
+        # Set device
+        if use_neuron:
+            try:
+                # Check if Neuron device is available
+                self.device = torch.device('xla')
+                print(f"Using Neuron device (XLA)")
+            except Exception as e:
+                warnings.warn(f"Neuron device not available: {e}. Falling back to CPU.")
+                self.device = torch.device('cpu')
+                self.use_neuron = False
+        else:
+            self.device = torch.device('cpu')
+            print("Using CPU device")
+
+        # Cache for compiled models: key=(M,K,N), value=compiled_model
+        self._compiled_models = {}
 
     def calculate_tiling(self, matmul_config: MatmulConfig) -> Tuple[int, int, int]:
         """
@@ -73,30 +103,87 @@ class NPUMatmulProfiler:
 
         return num_tiles_M, num_tiles_K, num_tiles_N
 
-    def run_npu_matmul(self, A: np.ndarray, B: np.ndarray) -> Tuple[np.ndarray, float]:
+    def _get_or_compile_model(self, M: int, K: int, N: int):
+        """
+        Get compiled model from cache or compile new one
+
+        Args:
+            M, K, N: Matrix dimensions
+
+        Returns:
+            Compiled Neuron model or regular PyTorch function
+        """
+        key = (M, K, N)
+
+        if key in self._compiled_models:
+            return self._compiled_models[key]
+
+        # Define a simple matmul module
+        class MatmulModule(torch.nn.Module):
+            def forward(self, a, b):
+                return torch.matmul(a, b)
+
+        model = MatmulModule()
+        model.eval()
+
+        if self.use_neuron:
+            # Create example inputs for tracing
+            example_a = torch.randn(M, K, dtype=torch.float32)
+            example_b = torch.randn(K, N, dtype=torch.float32)
+
+            try:
+                # Compile for Neuron using torch_neuronx.trace
+                print(f"  [Compiling for Neuron] M={M}, K={K}, N={N}... ", end='', flush=True)
+                compiled_model = torch_neuronx.trace(
+                    model,
+                    (example_a, example_b),
+                    compiler_workdir=f"/tmp/neuron_cache/matmul_{M}x{K}x{N}"
+                )
+                print("Done")
+                self._compiled_models[key] = compiled_model
+                return compiled_model
+            except Exception as e:
+                warnings.warn(f"Failed to compile model for shape ({M},{K},{N}): {e}")
+                self._compiled_models[key] = model
+                return model
+        else:
+            # CPU mode: just return the model
+            self._compiled_models[key] = model
+            return model
+
+    def run_npu_matmul(self, A: torch.Tensor, B: torch.Tensor) -> Tuple[torch.Tensor, float]:
         """
         Run matrix multiplication on NPU and measure latency
 
         Args:
-            A: Input matrix (M, K)
-            B: Input matrix (K, N)
+            A: Input tensor (M, K)
+            B: Input tensor (K, N)
 
         Returns:
-            C: Output matrix (M, N)
+            C: Output tensor (M, N)
             latency_ms: Latency in milliseconds
         """
-        # TODO: Replace with actual NPU API call
-        # This is a placeholder using NumPy for demonstration
+        M, K = A.shape
+        K2, N = B.shape
+        assert K == K2, f"Dimension mismatch: A.shape[1]={K} != B.shape[0]={K2}"
 
+        # Get or compile model for this shape
+        model = self._get_or_compile_model(M, K, N)
+
+        # For Neuron: move tensors to XLA device if needed
+        if self.use_neuron and str(A.device) != 'xla:0':
+            A = A.to(self.device)
+            B = B.to(self.device)
+
+        # Measure latency
         start_time = time.perf_counter()
+        C = model(A, B)
 
-        # Placeholder: actual NPU matmul would be called here
-        # Example NPU API calls might look like:
-        # - torch_npu.matmul(A, B) for PyTorch NPU
-        # - tflite inference for TensorFlow Lite
-        # - Custom NPU runtime API
-
-        C = np.matmul(A, B)
+        # For XLA: need to mark step and synchronize
+        if self.use_neuron:
+            import torch_xla.core.xla_model as xm
+            xm.mark_step()  # Trigger execution
+            xm.wait_device_ops()  # Wait for completion
 
         end_time = time.perf_counter()
         latency_ms = (end_time - start_time) * 1000
@@ -115,9 +202,9 @@ class NPUMatmulProfiler:
         Returns:
             ProfilingResult with latency and tiling information
         """
-        # Create random matrices
-        A = np.random.randn(matmul_config.M, matmul_config.K).astype(np.float32)
-        B = np.random.randn(matmul_config.K, matmul_config.N).astype(np.float32)
+        # Create random tensors (on CPU initially)
+        A = torch.randn(matmul_config.M, matmul_config.K, dtype=torch.float32)
+        B = torch.randn(matmul_config.K, matmul_config.N, dtype=torch.float32)
 
         # Warmup
         for _ in range(warmup):
@@ -129,7 +216,7 @@ class NPUMatmulProfiler:
             _, latency = self.run_npu_matmul(A, B)
             latencies.append(latency)
 
-        avg_latency = np.mean(latencies)
+        avg_latency = float(np.mean(latencies))
 
         # Calculate tiling
         num_tiles_M, num_tiles_K, num_tiles_N = self.calculate_tiling(matmul_config)
@@ -267,10 +354,11 @@ class NPUMatmulProfiler:
 
 def main():
     """Main profiling script"""
-    profiler = NPUMatmulProfiler()
+    # Initialize profiler with Neuron device
+    profiler = NPUMatmulProfiler(use_neuron=True)
 
     # Run different profiling suites
-    output_dir = "/home/jhpark/pjh_project/kernel_npu_profiling/results"
+    output_dir = "./results"
 
     # 1. LLM-focused profiling
     print("="*80)

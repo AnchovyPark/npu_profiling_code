@@ -56,7 +56,7 @@ def example_2_custom_configs():
         results.append(result)
 
     # Save to CSV
-    output_path = "/home/jhpark/pjh_project/kernel_npu_profiling/results/custom_example.csv"
+    output_path = "./results/custom_example.csv"
     profiler.save_results_to_csv(results, output_path)
     print(f"\nResults saved to {output_path}")
 
@@ -122,7 +122,7 @@ def example_4_llm_inference_scenarios():
         print(f"  Tiles: {result.total_tiles} (M:{result.num_tiles_M} x K:{result.num_tiles_K} x N:{result.num_tiles_N})")
         results.append(result)
 
-    output_path = "/home/jhpark/pjh_project/kernel_npu_profiling/results/llm_scenarios.csv"
+    output_path = "./results/llm_scenarios.csv"
     profiler.save_results_to_csv(results, output_path)
 
 
