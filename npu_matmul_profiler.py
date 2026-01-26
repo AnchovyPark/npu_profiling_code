@@ -20,11 +20,19 @@ import warnings
 
 @dataclass
 class NPUConfig:
-    """NPU Hardware Configuration"""
-    PE_M: int = 128  # PE height
-    PE_N: int = 128  # PE width
-    MAX_TENSOR_M: int = 128  # Max moving tensor height
-    MAX_TENSOR_K: int = 512  # Max moving tensor width
+    """NPU Hardware Configuration
+
+    PE (Processing Element) stores stationary matrix A(M×K)
+    Moving Tensor streams matrix B(K×N) to PE
+    """
+    # PE dimensions - for stationary A(M×K)
+    PE_M: int = 128  # PE M dimension (height)
+    PE_K: int = 128  # PE K dimension (width)
+
+    # Moving Tensor dimensions - for streaming B(K×N)
+    MOVING_K: int = 128  # Must match PE_K for consistency
+    MOVING_N: int = 512  # Moving tensor N dimension
+
     dtype: torch.dtype = torch.float16  # Data type for matmul (float16 for LLM)
 
 
@@ -98,11 +106,19 @@ class NPUMatmulProfiler:
     def calculate_tiling(self, matmul_config: MatmulConfig) -> Tuple[int, int, int]:
         """
         Calculate number of tiles needed for each dimension
+
+        PE tiles for A(M×K): divided by PE_M × PE_K
+        Moving Tensor tiles for B(K×N): divided by MOVING_K × MOVING_N
+
         Returns: (num_tiles_M, num_tiles_K, num_tiles_N)
         """
+        # A(M×K) tiling by PE
         num_tiles_M = (matmul_config.M + self.npu_config.PE_M - 1) // self.npu_config.PE_M
-        num_tiles_N = (matmul_config.N + self.npu_config.PE_N - 1) // self.npu_config.PE_N
-        num_tiles_K = (matmul_config.K + self.npu_config.MAX_TENSOR_K - 1) // self.npu_config.MAX_TENSOR_K
+        num_tiles_K = (matmul_config.K + self.npu_config.PE_K - 1) // self.npu_config.PE_K
+
+        # B(K×N) tiling by Moving Tensor
+        # K dimension must match PE_K tiling
+        num_tiles_N = (matmul_config.N + self.npu_config.MOVING_N - 1) // self.npu_config.MOVING_N
 
         return num_tiles_M, num_tiles_K, num_tiles_N
 

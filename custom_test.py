@@ -9,15 +9,22 @@ from npu_matmul_profiler import NPUMatmulProfiler, MatmulConfig
 profiler = NPUMatmulProfiler(use_neuron=True)
 
 # 측정하고 싶은 행렬 크기 정의
-# K=128 고정
-# M: 128 → 512 (32씩 증가)
-# N: 512 → 4096 (64씩 증가)
+# PE와 Moving Tensor Boundary 테스트 (K 변화)
 configs = []
-K = 128
 
-for M in range(128, 512 + 1, 32):
-    for N in range(512, 4096 + 1, 64):
-        configs.append(MatmulConfig(M=M, K=K, N=N))
+# PE_K의 배수 (128의 배수)
+K_values = [128, 256, 384, 512]
+
+# PE_M의 배수 (128의 배수)
+M_values = [512, 640, 768, 896, 1024]
+
+# MOVING_N의 배수 (512의 배수)
+N_values = [1024, 1536, 2048, 2560, 3072, 3584, 4096]
+
+for K in K_values:
+    for M in M_values:
+        for N in N_values:
+            configs.append(MatmulConfig(M=M, K=K, N=N))
 
 results = []
 
@@ -35,5 +42,5 @@ for config in configs:
     results.append(result)
 
 # CSV로 저장
-profiler.save_results_to_csv(results, './results/custom_test.csv')
-print('\n결과가 ./results/custom_test.csv에 저장되었습니다.')
+profiler.save_results_to_csv(results, './results/K_variation_test.csv')
+print('\n결과가 ./results/K_variation_test.csv에 저장되었습니다.')
