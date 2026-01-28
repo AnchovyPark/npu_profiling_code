@@ -1,0 +1,17 @@
+
+peak sb usage: 0.01
+peak psum usage: 0.07
+
+#=11.6 x bytes
+
+inst id=45 # bytes=4 (0.000)
+inst id=46 # bytes=8 (0.000)
+inst id=40 ################################################### bytes=584 (0.003)
+inst id=41 ################################################### bytes=584 (0.003)
+inst id=48 #################################################################################################### bytes=1160 (0.006)
+
+
+top 20 tensors with long live time
+dot.3.51 580 bytes per partition
+dot.3.49 1160 bytes per partition
+t47 1160 bytes per partition
