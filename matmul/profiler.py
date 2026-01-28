@@ -130,8 +130,8 @@ def run_profiling(M_values, K_values, N_values, output_file='../results/matmul/t
                 # M은 N보다 작아야 하고, 128 이하여야 함
                 if M >= N:
                     continue
-                if M > 128:
-                    break  # M_values가 오름차순이므로 break
+                # if M > 128:
+                #     break  # M_values가 오름차순이므로 break
 
                 count += 1
                 print(f"[{count}] M={M}, K={K}, N={N}")
@@ -168,15 +168,18 @@ def run_profiling(M_values, K_values, N_values, output_file='../results/matmul/t
 if __name__ == '__main__':
     # 테스트 범위 설정
     # M: 128부터 512까지 128 간격
-    M_start, M_end, M_step = 32, 128, 32
-    M_values = range(M_start, M_end + 1, M_step)
+    M_start, M_end, M_step = 128, 512, 128
+    # M_values = range(M_start, M_end + 1, M_step)
+    M_values = [128]
 
     # K: 128부터 256까지 128 간격
-    K_start, K_end, K_step = 32, 128, 32
-    K_values = range(K_start, K_end + 1, K_step)
+    K_start, K_end, K_step = 128, 512, 128
+    # K_values = range(K_start, K_end + 1, K_step)
+    K_values = [128]
 
     # N: 512부터 1024까지 512 간격
-    N_start, N_end, N_step = 32, 512, 32
+    N_start, N_end, N_step = 128, 1024, 8
     N_values = range(N_start, N_end + 1, N_step)
+    # N_values = [512]
 
-    run_profiling(M_values, K_values, N_values, '../results/matmul/simple_test.csv')
+    run_profiling(M_values, K_values, N_values, '../results/matmul/maxsize_tile.csv')
