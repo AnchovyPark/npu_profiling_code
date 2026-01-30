@@ -59,60 +59,107 @@ def measure_single(N):
 def measure_independent(N):
     """10번 독립적 matmul (서로 다른 텐서, 병렬화 가능)"""
     device = torch.device('xla:0')
-    
-    # 10쌍의 독립적인 텐서
-    tensors = [(torch.randn(N, N, dtype=torch.float16, device=device),
-                torch.randn(N, N, dtype=torch.float16, device=device))
-               for _ in range(NUM_MATMULS)]
+
+    # 10쌍의 독립적인 텐서 생성 (A1,A2), (B1,B2), (C1,C2), ...
+    A1, A2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
+    B1, B2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
+    C1, C2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
+    D1, D2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
+    E1, E2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
+    F1, F2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
+    G1, G2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
+    H1, H2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
+    I1, I2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
+    J1, J2 = torch.randn(N, N, dtype=torch.float16, device=device), torch.randn(N, N, dtype=torch.float16, device=device)
     sync()
-    
+
     # Warmup
     for _ in range(WARMUP):
-        results = [torch.matmul(A, B) for A, B in tensors]
-        _ = sum(r.sum() for r in results)
+        R1 = torch.matmul(A1, A2)
+        R2 = torch.matmul(B1, B2)
+        R3 = torch.matmul(C1, C2)
+        R4 = torch.matmul(D1, D2)
+        R5 = torch.matmul(E1, E2)
+        R6 = torch.matmul(F1, F2)
+        R7 = torch.matmul(G1, G2)
+        R8 = torch.matmul(H1, H2)
+        R9 = torch.matmul(I1, I2)
+        R10 = torch.matmul(J1, J2)
+        _ = R1.sum() + R2.sum() + R3.sum() + R4.sum() + R5.sum() + R6.sum() + R7.sum() + R8.sum() + R9.sum() + R10.sum()
         sync()
-    
+
     # Measure
     latencies = []
     for _ in range(ITERATIONS):
         start = time.perf_counter()
-        results = [torch.matmul(A, B) for A, B in tensors]
-        _ = sum(r.sum() for r in results)
+        R1 = torch.matmul(A1, A2)
+        R2 = torch.matmul(B1, B2)
+        R3 = torch.matmul(C1, C2)
+        R4 = torch.matmul(D1, D2)
+        R5 = torch.matmul(E1, E2)
+        R6 = torch.matmul(F1, F2)
+        R7 = torch.matmul(G1, G2)
+        R8 = torch.matmul(H1, H2)
+        R9 = torch.matmul(I1, I2)
+        R10 = torch.matmul(J1, J2)
+        _ = R1.sum() + R2.sum() + R3.sum() + R4.sum() + R5.sum() + R6.sum() + R7.sum() + R8.sum() + R9.sum() + R10.sum()
         sync()
         latencies.append((time.perf_counter() - start) * 1000)
-    
+
     return np.mean(latencies), np.std(latencies)
 
 
 def measure_chained(N):
-    """10번 종속적 matmul (C1→C2→C3→...→C10)"""
+    """10번 종속적 matmul (A1→A2→A3→...→A10)"""
     device = torch.device('xla:0')
-    
-    # 초기 텐서와 곱할 행렬들
+
+    # 초기 텐서와 곱할 행렬들 생성 (총 11개)
     A = torch.randn(N, N, dtype=torch.float16, device=device)
-    Bs = [torch.randn(N, N, dtype=torch.float16, device=device) 
-          for _ in range(NUM_MATMULS)]
+    B = torch.randn(N, N, dtype=torch.float16, device=device)
+    C = torch.randn(N, N, dtype=torch.float16, device=device)
+    D = torch.randn(N, N, dtype=torch.float16, device=device)
+    E = torch.randn(N, N, dtype=torch.float16, device=device)
+    F = torch.randn(N, N, dtype=torch.float16, device=device)
+    G = torch.randn(N, N, dtype=torch.float16, device=device)
+    H = torch.randn(N, N, dtype=torch.float16, device=device)
+    I = torch.randn(N, N, dtype=torch.float16, device=device)
+    J = torch.randn(N, N, dtype=torch.float16, device=device)
+    K = torch.randn(N, N, dtype=torch.float16, device=device)
     sync()
-    
+
     # Warmup
     for _ in range(WARMUP):
-        C = A
-        for B in Bs:
-            C = torch.matmul(C, B)
-        _ = C.sum()
+        A1 = torch.matmul(A, B)
+        A2 = torch.matmul(A1, C)
+        A3 = torch.matmul(A2, D)
+        A4 = torch.matmul(A3, E)
+        A5 = torch.matmul(A4, F)
+        A6 = torch.matmul(A5, G)
+        A7 = torch.matmul(A6, H)
+        A8 = torch.matmul(A7, I)
+        A9 = torch.matmul(A8, J)
+        A10 = torch.matmul(A9, K)
+        _ = A10.sum()
         sync()
-    
+
     # Measure
     latencies = []
     for _ in range(ITERATIONS):
         start = time.perf_counter()
-        C = A
-        for B in Bs:
-            C = torch.matmul(C, B)
-        _ = C.sum()
+        A1 = torch.matmul(A, B)
+        A2 = torch.matmul(A1, C)
+        A3 = torch.matmul(A2, D)
+        A4 = torch.matmul(A3, E)
+        A5 = torch.matmul(A4, F)
+        A6 = torch.matmul(A5, G)
+        A7 = torch.matmul(A6, H)
+        A8 = torch.matmul(A7, I)
+        A9 = torch.matmul(A8, J)
+        A10 = torch.matmul(A9, K)
+        _ = A10.sum()
         sync()
         latencies.append((time.perf_counter() - start) * 1000)
-    
+
     return np.mean(latencies), np.std(latencies)
 
 
