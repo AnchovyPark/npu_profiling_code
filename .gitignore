@@ -1,0 +1,11 @@
+# Neuron compiler artifacts
+*.neff
+*.ntff
+global_metric_store.json
+
+# Profile results
+neuron_profile_results/
+results/
+
+# Neuron compiler workdirs
+neuronxcc-*/

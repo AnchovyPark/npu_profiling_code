@@ -33,7 +33,7 @@ from datetime import datetime
 # ============================================================
 # Configuration
 # ============================================================
-SIZES = [2048, 2560, 3072, 3584, 4096]
+SIZES = [2048, 3072, 4096]
 HIDDEN = 4096  # LLM hidden dimension (e.g., LLaMA 7B/8B)
 ITERATIONS = 10
 WARMUP = 3
@@ -55,8 +55,6 @@ def calc_flops(op_name, M, H):
         "add":       M * H,            # element-wise add
         "gelu":      8 * M * H,        # x * 0.5 * (1 + tanh(...))
         "silu":      4 * M * H,        # x * sigmoid(x)
-        "layernorm": 5 * M * H,        # mean, var, normalize, scale, shift
-        "softmax":   5 * M * H,        # exp, sum, div
     }
     return flops_map[op_name]
 
@@ -96,21 +94,6 @@ class SiLUOp(nn.Module):
         return torch.nn.functional.silu(x)
 
 
-class LayerNormOp(nn.Module):
-    """VectorEngine: Layer Normalization"""
-    def __init__(self, H):
-        super().__init__()
-        self.ln = nn.LayerNorm(H)
-
-    def forward(self, x):
-        return self.ln(x)
-
-
-class SoftmaxOp(nn.Module):
-    """VectorEngine: Softmax"""
-    def forward(self, x):
-        return torch.nn.functional.softmax(x, dim=-1)
-
 
 def make_op(name, H):
     """이름으로 Operation module 생성."""
@@ -119,8 +102,6 @@ def make_op(name, H):
         "add":       lambda: AddOp(H),
         "gelu":      lambda: GELUOp(),
         "silu":      lambda: SiLUOp(),
-        "layernorm": lambda: LayerNormOp(H),
-        "softmax":   lambda: SoftmaxOp(),
     }
     return builders[name]()
 
@@ -202,8 +183,6 @@ PAIRS = [
     ("matmul", "add"),        # projection → residual add
     ("matmul", "gelu"),       # FFN up-projection → GELU (GPT style)
     ("matmul", "silu"),       # FFN gate-projection → SiLU (LLaMA style)
-    ("matmul", "layernorm"),  # projection output → layer normalization
-    ("matmul", "softmax"),    # QK^T → softmax (attention)
 ]
 
 # Engine mapping (참고용)
@@ -212,8 +191,6 @@ ENGINE_MAP = {
     "add":       "VectorEngine",
     "gelu":      "VectorEngine",
     "silu":      "VectorEngine",
-    "layernorm": "VectorEngine",
-    "softmax":   "VectorEngine",
 }
 
 
@@ -269,6 +246,7 @@ def main():
                     print("OK")
                 except Exception as e:
                     print(f"FAILED: {e}")
+                    del dep_model, dep_traced
                     continue
 
                 print(f"  Benchmarking independent...", end=" ", flush=True)
@@ -295,13 +273,14 @@ def main():
 
                 # 메모리 정리
                 del dep_model, dep_traced, indep_model, indep_traced
-                torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
     # ============================================================
     # Save CSV
     # ============================================================
+    results_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+    os.makedirs(results_dir, exist_ok=True)
     output_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
+        results_dir,
         f"cross_engine_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     )
 
