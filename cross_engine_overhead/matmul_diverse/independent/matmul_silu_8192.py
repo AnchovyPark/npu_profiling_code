@@ -6,7 +6,7 @@ H, M = 8192, 8192
 class MatMulOp(nn.Module):
     def __init__(self):
         super().__init__()
-        self.register_buffer('weight', torch.randn(H, H) * (2.0 / H) ** 0.5)
+        self.register_buffer('weight', torch.randn(H, H, dtype=torch.bfloat16) * (2.0 / H) ** 0.5)
     def forward(self, x):
         return torch.matmul(x, self.weight)
 
@@ -24,7 +24,7 @@ class IndependentPair(nn.Module):
 
 if __name__ == "__main__":
     model = IndependentPair().eval()
-    x1, x2 = torch.randn(M, H), torch.randn(M, H)
+    x1, x2 = torch.randn(M, H, dtype=torch.bfloat16), torch.randn(M, H, dtype=torch.bfloat16)
     print(f"Compiling matmul+silu independent ({M},{H})...", end=" ", flush=True)
     torch_neuronx.trace(model, (x1, x2), compiler_workdir=f"/tmp/neuron_indep_matmul_silu_{M}x{H}")
     print("OK")

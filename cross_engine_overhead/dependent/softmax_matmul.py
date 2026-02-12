@@ -17,7 +17,7 @@ class SoftmaxOp(nn.Module):
 class MatMulOp(nn.Module):
     def __init__(self, H):
         super().__init__()
-        self.register_buffer('weight', torch.randn(H, H) * (2.0 / H) ** 0.5)
+        self.register_buffer('weight', torch.randn(H, H, dtype=torch.bfloat16) * (2.0 / H) ** 0.5)
     def forward(self, x):
         return torch.matmul(x, self.weight)
 
@@ -33,7 +33,7 @@ class DependentPair(nn.Module):
 
 def main():
     model = DependentPair().eval()
-    x = torch.randn(M, H)
+    x = torch.randn(M, H, dtype=torch.bfloat16)
     workdir = f"/tmp/neuron_cross_softmax_matmul_{M}x{H}"
     print(f"Compiling softmax→matmul ({M},{H})...", end=" ", flush=True)
     torch_neuronx.trace(model, (x,), compiler_workdir=workdir)

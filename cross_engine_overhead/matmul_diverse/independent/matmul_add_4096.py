@@ -6,14 +6,14 @@ H, M = 4096, 4096
 class MatMulOp(nn.Module):
     def __init__(self):
         super().__init__()
-        self.register_buffer('weight', torch.randn(H, H) * (2.0 / H) ** 0.5)
+        self.register_buffer('weight', torch.randn(H, H, dtype=torch.bfloat16) * (2.0 / H) ** 0.5)
     def forward(self, x):
         return torch.matmul(x, self.weight)
 
 class AddOp(nn.Module):
     def __init__(self):
         super().__init__()
-        self.register_buffer('bias', torch.randn(1, H) * 0.01)
+        self.register_buffer('bias', torch.randn(1, H, dtype=torch.bfloat16) * 0.01)
     def forward(self, x):
         return x + self.bias
 
@@ -27,7 +27,7 @@ class IndependentPair(nn.Module):
 
 if __name__ == "__main__":
     model = IndependentPair().eval()
-    x1, x2 = torch.randn(M, H), torch.randn(M, H)
+    x1, x2 = torch.randn(M, H, dtype=torch.bfloat16), torch.randn(M, H, dtype=torch.bfloat16)
     print(f"Compiling matmul+add independent ({M},{H})...", end=" ", flush=True)
     torch_neuronx.trace(model, (x1, x2), compiler_workdir=f"/tmp/neuron_indep_matmul_add_{M}x{H}")
     print("OK")

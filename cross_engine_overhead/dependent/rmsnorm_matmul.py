@@ -12,7 +12,7 @@ M = 4096
 class RMSNormOp(nn.Module):
     def __init__(self, H):
         super().__init__()
-        self.register_buffer('weight', torch.ones(H))
+        self.register_buffer('weight', torch.ones(H, dtype=torch.bfloat16))
         self.eps = 1e-6
     def forward(self, x):
         rms = torch.sqrt(torch.mean(x ** 2, dim=-1, keepdim=True) + self.eps)
@@ -22,7 +22,7 @@ class RMSNormOp(nn.Module):
 class MatMulOp(nn.Module):
     def __init__(self, H):
         super().__init__()
-        self.register_buffer('weight', torch.randn(H, H) * (2.0 / H) ** 0.5)
+        self.register_buffer('weight', torch.randn(H, H, dtype=torch.bfloat16) * (2.0 / H) ** 0.5)
     def forward(self, x):
         return torch.matmul(x, self.weight)
 
@@ -38,7 +38,7 @@ class DependentPair(nn.Module):
 
 def main():
     model = DependentPair().eval()
-    x = torch.randn(M, H)
+    x = torch.randn(M, H, dtype=torch.bfloat16)
     workdir = f"/tmp/neuron_cross_rmsnorm_matmul_{M}x{H}"
     print(f"Compiling rmsnorm→matmul ({M},{H})...", end=" ", flush=True)
     torch_neuronx.trace(model, (x,), compiler_workdir=workdir)

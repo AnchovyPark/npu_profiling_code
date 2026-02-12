@@ -19,7 +19,7 @@ class LayerNormOp(nn.Module):
 class MatMulOp(nn.Module):
     def __init__(self, H):
         super().__init__()
-        self.register_buffer('weight', torch.randn(H, H) * (2.0 / H) ** 0.5)
+        self.register_buffer('weight', torch.randn(H, H, dtype=torch.bfloat16) * (2.0 / H) ** 0.5)
     def forward(self, x):
         return torch.matmul(x, self.weight)
 
@@ -35,8 +35,8 @@ class IndependentPair(nn.Module):
 
 def main():
     model = IndependentPair().eval()
-    x1 = torch.randn(M, H)
-    x2 = torch.randn(M, H)
+    x1 = torch.randn(M, H, dtype=torch.bfloat16)
+    x2 = torch.randn(M, H, dtype=torch.bfloat16)
     workdir = f"/tmp/neuron_indep_layernorm_matmul_{M}x{H}"
     print(f"Compiling layernorm_matmul independent ({M},{H})...", end=" ", flush=True)
     torch_neuronx.trace(model, (x1, x2), compiler_workdir=workdir)

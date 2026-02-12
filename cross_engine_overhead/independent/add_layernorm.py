@@ -12,7 +12,7 @@ M = 4096
 class AddOp(nn.Module):
     def __init__(self, H):
         super().__init__()
-        self.register_buffer('bias', torch.randn(1, H) * 0.01)
+        self.register_buffer('bias', torch.randn(1, H, dtype=torch.bfloat16) * 0.01)
     def forward(self, x):
         return x + self.bias
 
@@ -35,8 +35,8 @@ class IndependentPair(nn.Module):
 
 def main():
     model = IndependentPair().eval()
-    x1 = torch.randn(M, H)
-    x2 = torch.randn(M, H)
+    x1 = torch.randn(M, H, dtype=torch.bfloat16)
+    x2 = torch.randn(M, H, dtype=torch.bfloat16)
     workdir = f"/tmp/neuron_indep_add_layernorm_{M}x{H}"
     print(f"Compiling add_layernorm independent ({M},{H})...", end=" ", flush=True)
     torch_neuronx.trace(model, (x1, x2), compiler_workdir=workdir)
