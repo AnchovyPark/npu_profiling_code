@@ -2,6 +2,7 @@
 *.neff
 *.ntff
 global_metric_store.json
+log-neuron-cc.txt
 
 # Profile results
 neuron_profile_results/
